@@ -1,32 +1,47 @@
 import { useCallback } from "react";
 import Dexie from "dexie";
 
+interface SettingsStore {
+  key: string;
+  value: unknown;
+}
+
+interface DocumentStore {
+  id: string;
+  content: unknown;
+}
+
 const db = new Dexie("MarkdownPlayground");
 db.version(1).stores({
   settings: "&key, value",
-  documents: "id, content",
+  documents: "&id, content",
 });
 
 export default function useIndexedDB<T = unknown>(tableName: string) {
-  // item kaydetmek için
   const setItem = useCallback(
-    async (key: string, value: T) => {
+    async (id: string, content: T) => {
       try {
-        await db.table(tableName).put({ key, value });
+        const data =
+          tableName === "settings"
+            ? ({ key: id, value: content } as SettingsStore)
+            : ({ id, content } as DocumentStore);
+
+        await db.table(tableName).put(data);
       } catch (err) {
-        console.error(err);
+        console.error(`Failed to save to IndexedDB: ${err}`);
+        throw err;
       }
     },
     [tableName]
   );
 
   const getItem = useCallback(
-    async (key: string): Promise<T | null> => {
+    async (id: string): Promise<T | null> => {
       try {
-        const item = await db.table(tableName).get(key);
-        return item?.value ?? null;
+        const item = await db.table(tableName).get(id);
+        return (tableName === "settings" ? item?.value : item?.content) ?? null;
       } catch (err) {
-        console.error(err);
+        console.error(`Failed to read from IndexedDB: ${err}`);
         return null;
       }
     },

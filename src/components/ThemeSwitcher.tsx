@@ -4,7 +4,6 @@ import useIndexedDB from "@/hooks/useIndexedDB";
 
 export default function ThemeSwitcher() {
   const [theme, setTheme] = useState("light");
-  // Tip belirt!
   const { setItem, getItem } = useIndexedDB<string>("settings");
 
   useEffect(() => {

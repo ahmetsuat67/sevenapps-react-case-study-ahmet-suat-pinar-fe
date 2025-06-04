@@ -1,60 +1,168 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Editor from "@/components/Editor";
-import Preview from "@/components/Preview";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import SampleSelector from "@/components/SampleSelector";
+import ShortcutsButton from "@/components/ShortcutsButton";
 import useIndexedDB from "@/hooks/useIndexedDB";
-import { unified } from "unified";
-import remarkParse from "remark-parse";
-import remarkRehype from "remark-rehype";
-import rehypeStringify from "rehype-stringify";
-import rehypeSanitize from "rehype-sanitize";
-
 import intro from "@/samples/intro.md";
 import features from "@/samples/features.md";
 import usage from "@/samples/usage.md";
+import useDebouncedValue from "@/hooks/useDebouncedValue";
+import dynamic from "next/dynamic";
+import ExportHTMLButton from "@/components/ExportHTMLButton";
 
+const Preview = dynamic(() => import("@/components/Preview"), {
+  loading: () => <p>Loading...</p>,
+  ssr: false,
+});
+
+const parseMarkdown = async (markdown: string): Promise<string> => {
+  const [
+    { unified },
+    remarkParse,
+    remarkRehype,
+    rehypeStringify,
+    rehypeSanitize,
+    remarkGfm,
+    rehypeHighlight,
+  ] = await Promise.all([
+    import("unified"),
+    import("remark-parse"),
+    import("remark-rehype"),
+    import("rehype-stringify"),
+    import("rehype-sanitize"),
+    import("remark-gfm"),
+    import("rehype-highlight"),
+  ]);
+  const file = await unified()
+    .use(remarkParse.default)
+    .use(remarkRehype.default)
+    .use(rehypeSanitize.default)
+    .use(remarkGfm.default)
+    .use(rehypeHighlight.default, { detect: true, ignoreMissing: true })
+    .use(rehypeStringify.default)
+    .process(markdown);
+  return String(file);
+};
 
 export default function Home() {
-  const [markdown, setMarkdown] = useState("");
-  const [htmlContent, setHtmlContent] = useState("");
-  const { setItem, getItem } = useIndexedDB<string>("documents");
-  const samples = ["intro", "features", "usage"];
-  const [selectedSample, setSelectedSample] = useState(samples[0]);
+  const { setItem: setDocItem, getItem: getDocItem } =
+    useIndexedDB<string>("documents");
+  const { setItem: setSetting, getItem: getSetting } =
+    useIndexedDB<string>("settings");
 
-  // Sample content mapping
+  const samples = ["intro", "features", "usage"];
   const samplesContent: Record<string, string> = { intro, features, usage };
 
+  const [selectedSample, setSelectedSample] = useState(samples[0]);
+  const [markdown, setMarkdown] = useState("");
+  const [htmlContent, setHtmlContent] = useState("");
+  const [editorFullscreen, setEditorFullscreen] = useState(false);
+  const [previewFullscreen, setPreviewFullscreen] = useState(false);
+
+  const debouncedMarkdown = useDebouncedValue(markdown, 500);
+
   useEffect(() => {
-    getItem("lastDoc").then((saved) => {
-      if (saved) setMarkdown(saved);
-      else fetchSample(samples[0]);
+    getSetting("lastSample").then((savedSample) => {
+      const safeSample =
+        savedSample && samples.includes(savedSample) ? savedSample : samples[0];
+      setSelectedSample(safeSample);
+      getDocItem(safeSample).then((savedDoc) => {
+        setMarkdown(savedDoc ?? samplesContent[safeSample]);
+      });
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const handleSampleSelect = useCallback(
+    (sample: string) => {
+      setSelectedSample(sample);
+      setSetting("lastSample", sample);
+      getDocItem(sample).then((doc) => {
+        setMarkdown(doc ?? samplesContent[sample]);
+      });
+    },
+    [getDocItem, setSetting, samplesContent]
+  );
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        setDocItem(selectedSample, markdown);
+      }
+      if ((e.ctrlKey || e.metaKey) && ["1", "2", "3"].includes(e.key)) {
+        e.preventDefault();
+        const idx = Number(e.key) - 1;
+        const sample = samples[idx];
+        if (sample) {
+          setSelectedSample(sample);
+          setSetting("lastSample", sample);
+          getDocItem(sample).then((doc) => {
+            setMarkdown(doc ?? samplesContent[sample]);
+          });
+        }
+      }
+      if (e.key === "Escape") {
+        if (editorFullscreen) setEditorFullscreen(false);
+        if (previewFullscreen) setPreviewFullscreen(false);
+      }
+    },
+    [
+      markdown,
+      samples,
+      samplesContent,
+      setSetting,
+      setDocItem,
+      selectedSample,
+      getDocItem,
+      editorFullscreen,
+      previewFullscreen,
+    ]
+  );
+
   useEffect(() => {
-    unified()
-      .use(remarkParse)
-      .use(remarkRehype)
-      .use(rehypeSanitize)
-      .use(rehypeStringify)
-      .process(markdown)
-      .then((file) => setHtmlContent(String(file)));
-    setItem("lastDoc", markdown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markdown]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
 
-  // <<--- İşte burada ---->>
-  const fetchSample = (sample: string) => {
-    setMarkdown(samplesContent[sample]);
-  };
+  useEffect(() => {
+    let cancelled = false;
+    parseMarkdown(debouncedMarkdown).then((html) => {
+      if (!cancelled) setHtmlContent(html);
+    });
+    setDocItem(selectedSample, debouncedMarkdown); // <---- Dikkat!
 
-  const handleSampleSelect = (sample: string) => {
-    setSelectedSample(sample);
-    fetchSample(sample);
-  };
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedMarkdown, selectedSample, setDocItem]);
+
+  if (editorFullscreen) {
+    return (
+      <>
+        <Editor
+          markdown={markdown}
+          onMarkdownChange={setMarkdown}
+          fullscreen
+          onToggleFullscreen={() => setEditorFullscreen(false)}
+        />
+        <ShortcutsButton />
+      </>
+    );
+  }
+  if (previewFullscreen) {
+    return (
+      <>
+        <Preview
+          htmlContent={htmlContent}
+          fullscreen
+          onToggleFullscreen={() => setPreviewFullscreen(false)}
+        />
+        <ShortcutsButton />
+      </>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen p-4 gap-4 bg-background text-foreground">
@@ -64,12 +172,23 @@ export default function Home() {
           selected={selectedSample}
           onSelect={handleSampleSelect}
         />
-        <ThemeSwitcher />
+        <div className="flex gap-2">
+          <ExportHTMLButton htmlContent={htmlContent} />
+          <ThemeSwitcher />
+        </div>
       </div>
       <div className="flex flex-col md:flex-row gap-4 flex-1">
-        <Editor markdown={markdown} onMarkdownChange={setMarkdown} />
-        <Preview htmlContent={htmlContent} />
+        <Editor
+          markdown={markdown}
+          onMarkdownChange={setMarkdown}
+          onToggleFullscreen={() => setEditorFullscreen(true)}
+        />
+        <Preview
+          htmlContent={htmlContent}
+          onToggleFullscreen={() => setPreviewFullscreen(true)}
+        />
       </div>
+      <ShortcutsButton />
     </div>
   );
 }
