@@ -42,7 +42,7 @@ export default function ShortcutsButton() {
       <button
         onClick={() => setOpen(true)}
         className={`fixed bottom-6 right-6 z-50 p-3 ${
-          theme === "dark"
+          theme === "light"
             ? "bg-gray-800 hover:bg-gray-700"
             : "bg-gray-100 hover:bg-gray-200"
         } rounded-full shadow`}

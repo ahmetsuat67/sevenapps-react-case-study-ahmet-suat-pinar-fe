@@ -58,7 +58,7 @@ export default function Home() {
     useIndexedDB<string>("settings");
 
   const samples = useMemo(
-    () => ["readme","example","intro", "features", "usage"],
+    () => ["readme", "example", "intro", "features", "usage"],
     []
   );
 
@@ -124,11 +124,13 @@ export default function Home() {
     (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
-
         setDocItem(selectedSample, markdown);
       }
 
-      if ((e.ctrlKey || e.metaKey) && ["1", "2", "3", "4"].includes(e.key)) {
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        ["1", "2", "3", "4", "5"].includes(e.key)
+      ) {
         e.preventDefault();
         const idx = Number(e.key) - 1;
         const sample = samples[idx];
@@ -177,7 +179,9 @@ export default function Home() {
     let cancelled = false;
 
     parseMarkdown(debouncedMarkdown).then((html) => {
-      if (!cancelled) setHtmlContent(html);
+      if (!cancelled) {
+        setHtmlContent(html);
+      }
     });
 
     setDocItem(selectedSample, debouncedMarkdown);
@@ -226,17 +230,24 @@ export default function Home() {
           <ThemeSwitcher />
         </div>
       </div>
+
       <div className="flex flex-col md:flex-row gap-4 flex-1">
-        <Editor
-          markdown={markdown}
-          onMarkdownChange={setMarkdown}
-          onToggleFullscreen={() => setEditorFullscreen(true)}
-        />
-        <Preview
-          htmlContent={htmlContent}
-          onToggleFullscreen={() => setPreviewFullscreen(true)}
-        />
+        <div className="basis-1/2 flex flex-col flex-shrink-0">
+          <Editor
+            markdown={markdown}
+            onMarkdownChange={setMarkdown}
+            onToggleFullscreen={() => setEditorFullscreen(true)}
+          />
+        </div>
+
+        <div className="basis-1/2 flex flex-col flex-shrink-0">
+          <Preview
+            htmlContent={htmlContent}
+            onToggleFullscreen={() => setPreviewFullscreen(true)}
+          />
+        </div>
       </div>
+
       <ShortcutsButton />
     </div>
   );
