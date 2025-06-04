@@ -4,16 +4,18 @@ import useIndexedDB from "@/hooks/useIndexedDB";
 
 export default function ShortcutsButton() {
   const [open, setOpen] = useState(false);
-  const [theme, setTheme] = useState("light");
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   const { getItem } = useIndexedDB<string>("settings");
 
   useEffect(() => {
+    // İlk yüklemede IndexedDB'den tema bilgisini al
     getItem("theme").then((savedTheme) => {
       if (savedTheme && typeof savedTheme === "string") {
-        setTheme(savedTheme);
+        setTheme(savedTheme as "light" | "dark");
       }
     });
 
+    // <html data-theme> değişimini izlemek için MutationObserver
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (
@@ -22,7 +24,7 @@ export default function ShortcutsButton() {
         ) {
           const newTheme =
             document.documentElement.getAttribute("data-theme") || "light";
-          setTheme(newTheme);
+          setTheme(newTheme as "light" | "dark");
         }
       });
     });
@@ -41,8 +43,8 @@ export default function ShortcutsButton() {
         onClick={() => setOpen(true)}
         className={`fixed bottom-6 right-6 z-50 p-3 ${
           theme === "dark"
-            ? "bg-gray-100 hover:bg-gray-200"
-            : "bg-gray-800 hover:bg-gray-700"
+            ? "bg-gray-800 hover:bg-gray-700"
+            : "bg-gray-100 hover:bg-gray-200"
         } rounded-full shadow`}
         title="Show keyboard shortcuts"
         aria-label="Shortcuts"
@@ -62,12 +64,13 @@ export default function ShortcutsButton() {
             <ul className="space-y-2 text-sm">
               <li>
                 <b>Ctrl</b> + <b>S</b> / <b>Cmd</b> + <b>S</b>{" "}
-                <span className="ml-2 text-gray-500">Save document</span>
+                <span className="ml-2 text-gray-500">Save current document</span>
               </li>
               <li>
-                <b>Ctrl</b> + <b>1</b>/<b>2</b>/<b>3</b>{" "}
+                <b>Ctrl</b> + <b>1</b> / <b>Ctrl</b> + <b>2</b> / <b>Ctrl</b> +{" "}
+                <b>3</b> / <b>Ctrl</b> + <b>4</b> / <b>Ctrl</b> + <b>5</b>{" "}
                 <span className="ml-2 text-gray-500">
-                  Switch sample (Intro / Features / Usage)
+                  Switch sample ( Readme/ Example / Intro / Features / Usage)
                 </span>
               </li>
               <li>

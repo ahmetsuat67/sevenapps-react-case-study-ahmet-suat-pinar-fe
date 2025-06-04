@@ -1,12 +1,13 @@
 # Markdown Playground
 
 **Markdown Playground** is a client-side Next.js application that provides a live, responsive Markdown editor with real-time preview. It includes features such as sample file loading, light/dark theme toggling, keyboard shortcuts, full-screen editing/preview, IndexedDB persistence via Dexie.js, dynamic parser loading for performance, and HTML export.
-## 🌐 Live Demo
+
 ---
+## 🌐 Live Demo
+
 Try the app online at [Live Markdown Playground](https://livemarkdownplayground.vercel.app/)  
 (or copy & paste: `https://livemarkdownplayground.vercel.app/`)
 ---
-
 ## ✨ Features
 
 - 📄 **Live Markdown Editing & Preview**

@@ -1,13 +1,16 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Editor from "@/components/Editor";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import SampleSelector from "@/components/SampleSelector";
 import ShortcutsButton from "@/components/ShortcutsButton";
 import useIndexedDB from "@/hooks/useIndexedDB";
+import example from "@/samples/example.md";
 import intro from "@/samples/intro.md";
 import features from "@/samples/features.md";
 import usage from "@/samples/usage.md";
+import readme from "@/samples/readme.md";
 import useDebouncedValue from "@/hooks/useDebouncedValue";
 import dynamic from "next/dynamic";
 import ExportHTMLButton from "@/components/ExportHTMLButton";
@@ -35,6 +38,7 @@ const parseMarkdown = async (markdown: string): Promise<string> => {
     import("remark-gfm"),
     import("rehype-highlight"),
   ]);
+
   const file = await unified()
     .use(remarkParse.default)
     .use(remarkRehype.default)
@@ -43,6 +47,7 @@ const parseMarkdown = async (markdown: string): Promise<string> => {
     .use(rehypeHighlight.default, { detect: true, ignoreMissing: true })
     .use(rehypeStringify.default)
     .process(markdown);
+
   return String(file);
 };
 
@@ -52,8 +57,21 @@ export default function Home() {
   const { setItem: setSetting, getItem: getSetting } =
     useIndexedDB<string>("settings");
 
-  const samples = ["intro", "features", "usage"];
-  const samplesContent: Record<string, string> = { intro, features, usage };
+  const samples = useMemo(
+    () => ["readme","example","intro", "features", "usage"],
+    []
+  );
+
+  const samplesContent: Record<string, string> = useMemo(
+    () => ({
+      readme,
+      example,
+      intro,
+      features,
+      usage,
+    }),
+    []
+  );
 
   const [selectedSample, setSelectedSample] = useState(samples[0]);
   const [markdown, setMarkdown] = useState("");
@@ -68,8 +86,17 @@ export default function Home() {
       const safeSample =
         savedSample && samples.includes(savedSample) ? savedSample : samples[0];
       setSelectedSample(safeSample);
+
       getDocItem(safeSample).then((savedDoc) => {
-        setMarkdown(savedDoc ?? samplesContent[safeSample]);
+        if (
+          savedDoc !== null &&
+          savedDoc !== undefined &&
+          savedDoc.trim() !== ""
+        ) {
+          setMarkdown(savedDoc);
+        } else {
+          setMarkdown(samplesContent[safeSample]);
+        }
       });
     });
   }, []);
@@ -78,8 +105,16 @@ export default function Home() {
     (sample: string) => {
       setSelectedSample(sample);
       setSetting("lastSample", sample);
-      getDocItem(sample).then((doc) => {
-        setMarkdown(doc ?? samplesContent[sample]);
+      getDocItem(sample).then((savedDoc) => {
+        if (
+          savedDoc !== null &&
+          savedDoc !== undefined &&
+          savedDoc.trim() !== ""
+        ) {
+          setMarkdown(savedDoc);
+        } else {
+          setMarkdown(samplesContent[sample]);
+        }
       });
     },
     [getDocItem, setSetting, samplesContent]
@@ -89,20 +124,32 @@ export default function Home() {
     (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
+
         setDocItem(selectedSample, markdown);
       }
-      if ((e.ctrlKey || e.metaKey) && ["1", "2", "3"].includes(e.key)) {
+
+      if ((e.ctrlKey || e.metaKey) && ["1", "2", "3", "4"].includes(e.key)) {
         e.preventDefault();
         const idx = Number(e.key) - 1;
         const sample = samples[idx];
         if (sample) {
           setSelectedSample(sample);
           setSetting("lastSample", sample);
-          getDocItem(sample).then((doc) => {
-            setMarkdown(doc ?? samplesContent[sample]);
+
+          getDocItem(sample).then((savedDoc) => {
+            if (
+              savedDoc !== null &&
+              savedDoc !== undefined &&
+              savedDoc.trim() !== ""
+            ) {
+              setMarkdown(savedDoc);
+            } else {
+              setMarkdown(samplesContent[sample]);
+            }
           });
         }
       }
+
       if (e.key === "Escape") {
         if (editorFullscreen) setEditorFullscreen(false);
         if (previewFullscreen) setPreviewFullscreen(false);
@@ -128,10 +175,12 @@ export default function Home() {
 
   useEffect(() => {
     let cancelled = false;
+
     parseMarkdown(debouncedMarkdown).then((html) => {
       if (!cancelled) setHtmlContent(html);
     });
-    setDocItem(selectedSample, debouncedMarkdown); // <---- Dikkat!
+
+    setDocItem(selectedSample, debouncedMarkdown);
 
     return () => {
       cancelled = true;
